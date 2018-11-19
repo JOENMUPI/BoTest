@@ -1,0 +1,36 @@
+module TEGApp {
+    struct byt {
+        sequence<octet> obj;
+    };
+     
+    struct baseS {
+        string hostResponse;
+        string portResponse;
+        string sessionId;
+    };
+    
+    struct XC { 
+        string sessionId; 
+        string typeResponse;
+        sequence<octet> Response;
+    };
+    
+    struct XD {
+        string schema;
+        string queryId;
+        sequence<octet> params;
+    };
+    
+    interface baseI {
+        boolean test();
+        oneway void shutdown();
+    };
+    
+    interface XtoD: baseI {
+        byt dataRequest(in XD data);
+    };
+    
+    interface XtoC: baseI {
+        oneway void sendData(in XC data);
+    };
+};

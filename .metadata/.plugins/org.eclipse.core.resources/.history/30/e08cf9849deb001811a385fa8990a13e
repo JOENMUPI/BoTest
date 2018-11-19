@@ -1,0 +1,78 @@
+package ORB;
+
+import TEGApp.*;
+import Utilities.Props;
+import org.omg.CosNaming.*;
+import org.omg.CORBA.*;
+import org.omg.PortableServer.*;
+import org.omg.PortableServer.POA;
+
+class XtoCImpl extends XtoCPOA {
+	private ORB orb;
+	
+	public void setORB(ORB orb_val) { orb = orb_val; }
+	public boolean test() { return true; }
+	public void shutdown() { orb.shutdown(false); }
+	public void sendData(XC data) {
+		//crea aqui una respuesta para el clinete, un json ejemplo y nose como meterlo al response de la peticion. 
+	}
+}
+
+public class ServerOrb {
+	public static void main(String args[]) {
+		try {
+			Runtime.getRuntime().exec("cmd /C start /wait orbd -ORBInitialPort " + Props.getPropertiesFile("Connections", "Server").getProperty("port"));
+			start();
+			ORB orb = ORB.init(ArgsParser.serverInfo(Props.getPropertiesFile("Connections", "Server")), null); 
+			POA rootpoa = POAHelper.narrow(orb.resolve_initial_references("RootPOA"));
+			rootpoa.the_POAManager().activate();
+			XtoCImpl CtoSImpl = new XtoCImpl(); 
+			CtoSImpl.setORB(orb); 
+			NamingContextExt ncRef = NamingContextExtHelper.narrow(orb.resolve_initial_references("NameService"));
+			NameComponent path[] = ncRef.to_name("CtoS");
+			ncRef.rebind(path, CtoBHelper.narrow(rootpoa.servant_to_reference(CtoSImpl)));
+			System.out.println("ServidorOrb Connection listo y en espera");
+			orb.run();
+		}
+		
+		catch (Exception e) { System.err.println("Error: " + e); e.printStackTrace(System.out); }
+		System.out.println("Adios, cerrando servidor Connection");
+	}
+	
+	private static void start() {
+		//CULAQUIER COSA QUE QUIERA HACER ANTE EN EL SERVIDOR
+	}
+}
+/* con esto contaras segundosssss
+
+
+
+public class Tiempo  {
+
+private Timer timer = new Timer(); 
+private int segundos=0;
+
+//Clase interna que funciona como contador
+class Contador extends TimerTask {
+    public void run() {
+        segundos++;
+ System.out.println("segundo: " + segundos);
+    }
+}
+//Crea un timer, inicia segundos a 0 y comienza a contar
+public void Contar()
+{
+    this.segundos=0;
+    timer = new Timer();
+    timer.schedule(new Contador(), 0, 1000);
+}
+//Detiene el contador
+public void Detener() {
+    timer.cancel();
+}
+//Metodo que retorna los segundos transcurridos
+public int getSegundos()
+{
+    return this.segundos;
+}
+}*/
