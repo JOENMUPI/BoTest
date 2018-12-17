@@ -17,7 +17,6 @@ class XtoDImpl extends XtoDPOA {
 	private ORB orb; 
 		
 	public void setORB(ORB orb_val) { orb = orb_val; }
-	public boolean test() { return true; }
 	public void shutdown() { this.orb.shutdown(false); }
 	public byt dataRequest(XD data) {
 		byt b = new byt();

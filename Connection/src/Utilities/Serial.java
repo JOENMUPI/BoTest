@@ -6,35 +6,24 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
-import TEGApp.byt;
-
 public class Serial {
-	public static byte[] serializeParams(Object ...params) {
+	public static byte[] serializeParams(Object[] params) {
 		ByteArrayOutputStream bs= new ByteArrayOutputStream();
-		ObjectOutputStream os;
 		try {
-			os = new ObjectOutputStream (bs);
+			ObjectOutputStream os = new ObjectOutputStream (bs);
 			os.writeObject(params); 
 			os.close();
-		}
-		
-		catch (IOException e) { System.err.println("Error: " + e); e.printStackTrace(); }
+		} catch (IOException e) {  e.printStackTrace(); }
 		return bs.toByteArray(); 
 	}
 		
-	public static Object[] deserializeParams(byt[] b) {
-		Object[] response = (Object[]) new Object();
+	public static DataSet deserializeDS(byte[] b) {
 		try {
-			for(int i = 0; i < b.length; i++) {
-				ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(b[i].obj));	
-				response[i] = (Object)is.readObject();
-				is.close();
-			}
-			
+			ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(b));
+			DataSet response = (DataSet) is.readObject();
+			is.close();
 			return response;
-		} 
-		
-		catch (IOException | ClassNotFoundException e) {
+		} catch (IOException | ClassNotFoundException e) {
 			System.err.println("Error: " + e); 
 			e.printStackTrace(); 
 			return null; 

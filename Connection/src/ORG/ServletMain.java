@@ -1,6 +1,7 @@
 package ORG;
 
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
@@ -16,6 +17,7 @@ import org.omg.CORBA.ORB;
 
 import ORB.ArgsParser;
 import ORB.ClientOrb;
+import TEGApp.CB;
 import TEGApp.XD;
 import Utilities.Props;
 import Utilities.Serial;
@@ -26,107 +28,112 @@ public class ServletMain extends HttpServlet {
 	private static final long serialVersionUID = 1L;
     public ServletMain() { super(); }
     
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		switch(request.getParameter("methodName")) {
+		case "Logout":
+			this.logout(request, response);
+			break;
+		default:
+			this.sendata(request, response);
+			break;
+		}
+    }
+    
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		HttpSession session = request.getSession();
 		JSONObject reqBody = new JSONObject(request.getReader().lines().collect(Collectors.joining(System.lineSeparator())));
 		
 		switch(reqBody.getString("methodName")) {
 		case "Login":
-			this.loginPost(session, reqBody, response);
+			this.login(session, reqBody, response);
 			break;
 		case "Register":
-			this.registerPost(session, reqBody, response);
-			break;	
-		case "Logout":
-			this.logoutPost(session, response);
+			this.register(session, reqBody, response);
 			break;
 		default:
-			this.sendata(reqBody, response);
+			this.sendata(session, reqBody, response);
 			break;
 		}
 	}
 	
-	private void sendata(JSONObject reqBody, HttpServletResponse response) throws IOException {  	
-		//conexion syc a security, en este caso inserte aqui su conexion asyc con su b.o
-		ProcessParams.parseParams(reqBody.getString("params").substring(1, reqBody.getString("params").length() - 1).split(","), reqBody.getString("typePamars").substring(1, reqBody.getString("typeParams").length()-1).split(","));
-		//eliminamos corchetes y dividimos los elementos para su proceso
+	private void sendata(HttpSession session, JSONObject reqBody, HttpServletResponse response) throws IOException {  	
+		JSONObject json = new JSONObject();
+		try { 
+			if(!session.isNew()) {
+				CB cb = new CB("" + new SecureRandom().nextLong(), reqBody.getString("methodName"), Serial.serializeParams(ProcessParams.parseParams(this.fragment(reqBody.getString("params")), this.fragment(reqBody.getString("typeParams")))));
+				//falta crear las interfaces de los b.o, con los elemento ya constuidos aqui solo falta enviarlo
+			} else { session.invalidate(); }
+		} catch(Exception e) {
+			e.printStackTrace();
+			json.put("status", 500).put("response", "Internal error: " + e);
+		} finally { response.getWriter().println(json); }
 	}
-		
-	private void logoutPost(HttpSession session, HttpServletResponse response) throws IOException {  	
+	
+	private void sendata(HttpServletRequest request, HttpServletResponse response) throws IOException {  	
+		HttpSession session = request.getSession();
 		JSONObject json = new JSONObject();
+		try { 
+			if(!session.isNew()) { 
+				CB cb = new CB("" + new SecureRandom().nextLong(), request.getParameter("methodName"), Serial.serializeParams(ProcessParams.parseParams(this.fragment(request.getParameter("params")), this.fragment(request.getParameter("typePamars")))));
+				//falta crear las interfaces de los b.o, con los elemento ya constuidos aqui solo falta enviarlo
+			} else { session.invalidate(); }
+		} catch(Exception e) {
+			e.printStackTrace();
+			json.put("status", 500).put("response", "Internal error: " + e);
+		} finally { response.getWriter().println(json); }
+	}
+	
+	private void logout(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		HttpSession session = request.getSession();
+    	JSONObject json = new JSONObject();
 		if(session.isNew()) {
-    		response.setStatus(401);
     		json.put("status", "401").put("response", "You're not logged in");
-			System.out.println("Not logged --");
 			session.invalidate();
-		}
-		
-		else {
-			System.out.println("Logout --");
-			session.invalidate();
-		}
-		
+		} else { session.invalidate(); }
 		response.getWriter().print(json.toString());
-    }
-	private void registerPost(HttpSession session, JSONObject reqBody, HttpServletResponse response) throws IOException {		
+	}
+	
+	private void register(HttpSession session, JSONObject reqBody, HttpServletResponse response) throws IOException {		
 		JSONObject json = new JSONObject();
-		//este if tendria otra linea sadicota como la que veras mas abajo.
-		//por los momentos no lo cambio, tenemos peores problemas xd
-		if(Math.random()==3/*!db.login(reqBody.getString("email"), reqBody.getString("password"))*/) {
-			//esto es ridiculo... una peticion al server de base de datos.
-			ClientOrb.getXtoDImpl(ORB.init(ArgsParser.serverInfo(Props.getPropertiesFile("connections", "db")), null)).dataRequest(new XD("db", "register", Serial.serializeParams(reqBody.getString("email"), reqBody.getString("password"))));
-			// esta medio enredado, si tienes dudas recuerdame explicarte esta linea
-			//no se como devolver la respuesta, debido a que es oneway, como insertecuando llege la respuesta po aca????		
-			json.put("status", "200").put("response", "signup finished");
-	    	System.out.println("Register --");
-	    	this.storeValue(reqBody.getString("email"), reqBody.getString("password"), session);
-	    	System.out.println("------------------------------------------------------------");
-			System.out.println("User-> " + reqBody.getString("email"));
-		}
-		
-		else {
-			json.put("status", "400").put("response", "email already used");
-	    	System.out.println("Fail register --");
-			session.invalidate();
-		}
-		
-		response.getWriter().println(json.toString()); 
+		try {
+			if(Serial.deserializeDS(ClientOrb.getXtoDImpl(ORB.init(ArgsParser.serverInfo(Props.getPropertiesFile("connections", "server")), null)).dataRequest(new XD("user", "checkUser", Serial.serializeParams(new Object[] { reqBody.getString("user"), reqBody.getString("pass") }))).obj).hasNext()) {
+				json.put("status", 400).put("response", "email already used");
+		    	session.invalidate();
+		    } else {
+		    	ClientOrb.getXtoDImpl(ORB.init(ArgsParser.serverInfo(Props.getPropertiesFile("connections", "server")), null)).dataRequest(new XD("db", "login", Serial.serializeParams(new Object[] { reqBody.getString("user"), reqBody.getString("pass") })));
+		    	json.put("status", 200).put("response", "signup finished");
+		    	this.storeValue(reqBody.getString("email"), reqBody.getString("password"), session);
+			}
+		} catch(Exception e) { 
+			e.printStackTrace();
+			json.put("status", 500).put("response", "Internal error " + e);
+		} finally { response.getWriter().println(json); } 
 	}
     
-    private void loginPost(HttpSession session, JSONObject reqBody, HttpServletResponse response) throws IOException {
+    private void login(HttpSession session, JSONObject reqBody, HttpServletResponse response) throws IOException {
     	JSONObject json = new JSONObject();
-    	if(session.isNew()) {
-			if(/*db.login(reqBody.getString("email"), reqBody.getString("password"))*/Math.random()==2) {
-				this.storeValue(reqBody.getString("email"), reqBody.getString("password"), session);
-				json.put("status", "200").put("response", reqBody.getString("email"));
-				System.out.println("------------------------------------------------------------");
-				System.out.println("User-> " + reqBody.getString("email"));
-			}
-	
-			else {
-				json.put("response", "Wrong email or password").put("status", "400");
-				session.invalidate();
-				System.out.println("Wrong data --");
-			}
-		}
-
-		else {
-			json.put("response", "you're logged in").put("status", "400");
-			System.out.println("Already log --");
-		}
-
-		response.getWriter().println(json.toString()); 
+    	try {
+	    	if(session.isNew()) {
+				if(Serial.deserializeDS(ClientOrb.getXtoDImpl(ORB.init(ArgsParser.serverInfo(Props.getPropertiesFile("connections", "db")), null)).dataRequest(new XD("user", "login", Serial.serializeParams(new Object[] { reqBody.getString("user"), reqBody.getString("pass") }))).obj).hasNext()) {
+					this.storeValue(reqBody.getString("user"), reqBody.getString("pass"), session);
+					json.put("status", 200).put("response", reqBody.getString("email"));
+				} else {
+					json.put("response", "Wrong email or password").put("status", 400);
+					session.invalidate();
+				}
+	    	} else { json.put("response", "you're logged in").put("status", 400); }
+    	} catch(Exception e) { 
+    		json.put("status", 500).put("response", "Internal error: " + e); 
+    		e.printStackTrace(); 
+    	} finally { response.getWriter().println(json); }
 	}	
     
-	private void storeValue(String email, String password, HttpSession session) {
-		if(email == null) {
-			session.setAttribute("email", "");
-			session.setAttribute("password", "");
-		} 
-		
-		else {
-			session.setAttribute("email", email);
-			session.setAttribute("password", password);
-		}
+    private String[] fragment(String array) {
+    	return array.substring(1, array.length() - 1).split(",");
+    }
+    
+	private void storeValue(String user, String pass, HttpSession session) {
+		session.setAttribute("user", user);
+		session.setAttribute("pass", pass);
 	}
 }

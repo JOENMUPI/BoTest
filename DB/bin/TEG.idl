@@ -6,13 +6,17 @@ module TEGApp {
     struct baseS {
         string hostResponse;
         string portResponse;
-        string sessionId;
     };
     
     struct XC { 
-        string sessionId; 
         string typeResponse;
         sequence<octet> Response;
+    };
+    
+    struct CB {
+        baseS infoR;
+        string methodName;
+        sequence<octet> params;
     };
     
     struct XD {
@@ -22,8 +26,11 @@ module TEGApp {
     };
     
     interface baseI {
-        boolean test();
         oneway void shutdown();
+    };
+        
+    interface CtoB: baseI {
+        XC senData(in CB data);
     };
     
     interface XtoD: baseI {
